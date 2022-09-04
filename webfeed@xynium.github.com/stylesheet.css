@@ -1,0 +1,8 @@
+/* custom extension styling here */
+.webfeed-icon-size { icon-size: 20px; }
+.webfeed-button-box { padding: 0px; spacing: 22px;}
+.webfeed-button-action { icon-size: 20px; }
+
+
+.webfeed-label {color : #FFE5CC; font-weight: bold;font-size: 12pt}
+.webfeed-drawarea-dim {width: 16px;  height: 16px; }
