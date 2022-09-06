@@ -3,10 +3,8 @@
  * Parse Atom
  */
 
-const Me = imports.misc.extensionUtils.getCurrentExtension();
 
-
-class AtomParser  {
+var AtomParser=class AtomParser  {
     constructor(xmlBase){
         this.Items =[];
         this.Title ='';

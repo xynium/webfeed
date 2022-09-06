@@ -1,26 +1,13 @@
 /*
- * RSS Feed extension for GNOME Shell
- *
- * Copyright (C) 2015
+ * WebFeed
+ * MK2 by Xynium
+ * 
+ * From
  *     Tomas Gazovic <gazovic.tomasgmail.com>,
  *     Janka Gazovicova <jana.gazovicova@gmail.com>
- *
- * This file is part of gnome-shell-extension-rss-feed.
- *
- * gnome-shell-extension-rss-feed is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * gnome-shell-extension-rss-feed is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with gnome-shell-extension-rss-feed.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+'use strict';
 
 const Main = imports.ui.main;
 const Mainloop = imports.mainloop;
@@ -47,16 +34,16 @@ const ITEMS_VISIBLE_KEY = 'items-visible';
 const DELETE_AFTER = "delete-after"
 const _MS_PER_HOUR = 1000 * 60 * 60 ;
 
+const MAXRESPDELAY=400; //en 0.1seconde soit 40 seconde //TODO make a choice in prefdialog
 
-let rssFeedBtn;
+let webfeedClass;
 let settings;
-
-/*
- *  Main RSS Feed extension class
- */
+let feedsArray;
+let rxAsync;
+let secu;
  
-const RssFeedButton  = GObject.registerClass(
-class RssFeedButton extends PanelMenu.Button {
+const WebFeedClass  = GObject.registerClass(
+class WebFeedClass extends PanelMenu.Button {
     
     
     _init() {
@@ -64,18 +51,19 @@ class RssFeedButton extends PanelMenu.Button {
 
         this._httpSession = null;
         this._startIndex = 0;
+        this.hotIndex=0;
+        //feedsArray = [];
 
-        let topBox = new St.BoxLayout();
+        this.topBox = new St.BoxLayout();
         // top panel button
-        let icon = new St.Icon({
+        this.icon = new St.Icon({
             gicon : Gio.icon_new_for_string( Me.dir.get_path()+ '/rss_green.png' ),
             style_class: 'webfeed-icon-size'
-            
         });
         
         // 'application-rss+xml-symbolic',
-        topBox.add_actor(icon)
-        this.add_actor(topBox);
+        this.topBox.add_child(this.icon)
+        this.add_child(this.topBox);
         
         //Menu
         this._feedsBox = new St.BoxLayout({
@@ -178,14 +166,15 @@ class RssFeedButton extends PanelMenu.Button {
         return button;
     }
 
-    //  Frees resources of extension
     stop() {
-        log('stopping webfeed');
+        //log('stopping webfeed');
         if (this._httpSession)
             this._httpSession.abort();
+        if (this.timeout)
+            Mainloop.source_remove(this.timeout);
+        if (this.wtforresptmr)
+            Mainloop.source_remove(this.wtforresptmr);
         this._httpSession = null;
-        if (this._timeout)
-            Mainloop.source_remove(this._timeout);
     }
 
     // previous button clicked callback
@@ -232,35 +221,69 @@ class RssFeedButton extends PanelMenu.Button {
 
     //reload of RSS feeds from sources set in settings
     realoadRssFeeds() {
-        log("Reload RSS Feeds");
-                
-        if (settings.get_strv(RSS_FEEDS_LIST_KEY).length==0) return;
-        
-        this.feedsArray = new Array(settings.get_strv(RSS_FEEDS_LIST_KEY).length);
+        log("Reload all Feeds");
+        if (this.timeout)
+            Mainloop.source_remove(this.timeout);
+            
+        if (settings.get_strv(RSS_FEEDS_LIST_KEY).length!=0) {
 
-        if (this._timeout)
-            Mainloop.source_remove(this._timeout);
+            feedsArray=[];
+            rxAsync=[];
+            
+            if (settings.get_strv(RSS_FEEDS_LIST_KEY)) {
 
-        if (settings.get_strv(RSS_FEEDS_LIST_KEY)) {
+                for (let i = 0; i < settings.get_strv(RSS_FEEDS_LIST_KEY).length; i++)           {
+                    let url = settings.get_strv(RSS_FEEDS_LIST_KEY)[i];
+                    let jsonObj = this.getParametersAsJson(url);
 
-            for (let i = 0; i < settings.get_strv(RSS_FEEDS_LIST_KEY).length; i++)
-            {
-                let url = settings.get_strv(RSS_FEEDS_LIST_KEY)[i];
-                let jsonObj = this.getParametersAsJson(url);
+                    if (url.indexOf('?') != -1)
+                        url = url.substr(0, url.indexOf('?'));
 
-                if (url.indexOf('?') != -1)
-                    url = url.substr(0, url.indexOf('?'));
-
-                this.httpGetRequestAsync(url, JSON.parse(jsonObj), i);
-            }
-        }
-
-        // set timeout if enabled
+                    this.httpGetRequestAsync(url, JSON.parse(jsonObj), i);
+                    rxAsync[i]=1;
+                }
+    
+            } 
+            //timer attente response
+             this.wtforresptmr=Mainloop.timeout_add(100, this.wtforresp.bind(this));
+               secu=0;
+          }
+          
+          // set timeout if enabled
         if (settings.get_int(UPDATE_INTERVAL_KEY) > 0) {
             log("Next scheduled reload after " + settings.get_int(UPDATE_INTERVAL_KEY)*60 + " seconds");
-            this._timeout = Mainloop.timeout_add(settings.get_int(UPDATE_INTERVAL_KEY)*60, this.realoadRssFeeds );
+            this.timeout = Mainloop.timeout_add_seconds(settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
         }
     }
+          //wait for all response from http get
+          //timer call it every 100ms
+          // when all received kill timer
+          // if after secu recuest not good throw an error an continue
+    wtforresp(){
+            if (this.wtforresptmr)
+                Mainloop.source_remove(this.wtforresptmr);
+            let allz=false;
+            try{
+                if (secu++>MAXRESPDELAY) throw('ERROR : Http problem :');  //  has waited too long
+                allz = rxAsync.every((value, index, array) =>{
+                        return value==0 ;
+                });
+                if (!allz) {
+                     this.wtforresptmr=Mainloop.timeout_add(100, this.wtforresp.bind(this));
+                     return;
+                 }
+            }
+            catch(error){
+                log(error);
+                 for (let i = 0; i < settings.get_strv(RSS_FEEDS_LIST_KEY).length; i++) {
+                     if (xAsync[i]==1) log(settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+" has not responded ");
+                 }
+            }
+            log('all response  in '+secu/10+' s');
+             this.refreshMenuLst();
+             this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString());
+    }
+
 
     /*
      *  Creates asynchronous HTTP GET request 
@@ -269,108 +292,51 @@ class RssFeedButton extends PanelMenu.Button {
      *  position - Position in RSS sources list
      */
     httpGetRequestAsync(url, params, position) {
-       
         if (this._httpSession == null) this._httpSession = new Soup.SessionAsync();
-            
         //log("[" + position + "] Soup HTTP GET request. URL: " + url + " parameters: " + JSON.stringify(params));
-
         Soup.Session.prototype.add_feature.call(this._httpSession, new Soup.ProxyResolverDefault());
         let request = Soup.form_request_new_from_hash('GET', url, params);
         if (request==null) return;
-       
-        this._httpSession.queue_message(request, (_httpSession, message)=> {
-            // log("[" + position + "] Soup HTTP GET reponse. Status code: " + message.status_code + " Content Type: " + message.response_headers.get_one("Content-Type"));
-            if (message.response_body.data) this.onDownload(message.response_body.data, position);
+      
+        this._httpSession.queue_message(request, (self, message)=> {
+            //log("[" + position + "] Soup HTTP GET reponse. Status code: " + message.status_code + " Content Type: " + message.response_headers.get_one("Content-Type"));
+            if (message.response_body.data) onDownload(message.response_body.data, position);
+            else rxAsync[position]=0;
         },);
     }
 
-    /*
-     *  On HTTP request response download 
-     *  responseData - response data
-     *  position - Position in RSS sources list
-     */
-    onDownload(responseData, position) {
-        let xmlDoc = new JsxmL.REXML(responseData);
-        let feedParser;
-              
-        if (xmlDoc.rootElement.name.toLowerCase().slice(0, 3) == 'rss'){  // 3 est la length de rss
-            //log('RSS ');
-            feedParser= new Rss.RssParser(xmlDoc.rootElement);
-        }  
-        
-        if (xmlDoc.rootElement.name.toLowerCase().slice(0, 4) == 'feed'){
-            //log('ATOM');
-            feedParser= new Atom.AtomParser(xmlDoc.rootElement);
-        }
-        
-        if (feedParser==null) {           // entré ni rss ni atom
-            log('Bad XML'); 
-            return; 
-        }       
-
-        //log('nItem '+feedParser.Items.length ); 
-        
-        if (feedParser.Items.length > 0)
-        {
-            let Feed = new class{
-                   constructor(){
-                    this.Title= feedParser.Title; 
-                    this.HttpLink=  feedParser.HttpLink;
-                    this.PublishDate=feedParser.PublishDate;
-                    this.Items= [];
-                } };
-           // Feed.Title = feedParser.Title;
-           
-            for (let i = 0; i < feedParser.Items.length; i++) {
-                let item = new class{
-                   constructor(){
-                     this.Title= feedParser.Items[i].Title;
-                     this.HttpLink=  feedParser.Items[i].HttpLink;
-                     this.PublishDate=feedParser.Items[i].PublishDate;
-                }};
-                //item.Title = feedParser.Items[i+1].Title;
-                //item.HttpLink = feedParser.Items[i].HttpLink;
-                Feed.Items.push(item);
-            }
-            this.feedsArray[position] = Feed;
-        } 
-        else{
-            log('Bad XML no item'); 
-            return; 
-        }   
-       
-        this.refreshMenuLst();
-        // update last download time
-        this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString());
-    }
-
-    /*
-     *  Reloads feeds section
-     */
-    refreshMenuLst() {
+    //  Reloads feeds section
+     refreshMenuLst() {
         let counter = 0;
         this.feedsSection.removeAll();
         this.EraseHotItem();
-        
-        for (let i = this._startIndex; i < this.feedsArray.length; i++) {
-            if (this.feedsArray[i] && this.feedsArray[i].Items) {
-                //if (this.feedsArray[i]==null) continue; //securité
-                let old=((new Date()- this.ISODateParser(this.feedsArray[i].PublishDate)) / _MS_PER_HOUR); 
+                
+        for (let i = this._startIndex; i < feedsArray.length; i++) {
+            if (feedsArray[i] && feedsArray[i].Items) {
+                //if (feedsArray[i]==null) continue; //securité
+                let old=((new Date()- this.ISODateParser(feedsArray[i].PublishDate)) / _MS_PER_HOUR); 
                 if (old>settings.get_int(DELETE_AFTER)) continue;
-                if (old<2*settings.get_int(UPDATE_INTERVAL_KEY))  this.hotItem(this.feedsArray[i].Title);
-                let nItems = this.feedsArray[i].Items.length;
-                let subMenu = new PopupMenu.PopupSubMenuMenuItem("("+old.toFixed(1)+"H ago) "+this.feedsArray[i].Title+ ' (' + nItems + ') :') ; //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
+                if (this.hotIndex<1) {
+                    this.warmItem();
+                }
+                if ((old<(2*settings.get_int(UPDATE_INTERVAL_KEY)/60))&& (this.hotIndex<2)) {
+                    this.hotItem(feedsArray[i].Title);
+                }
+                let nItems = feedsArray[i].Items.length;
+                let subMenu = new PopupMenu.PopupSubMenuMenuItem("("+old.toFixed(1)+"H ago) "+feedsArray[i].Title+ ' (' + nItems + ') :') ; //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
                 for (let j = 0; j < nItems; j++) {
-                    old=((new Date()- this.ISODateParser(this.feedsArray[i].Items[j].PublishDate)) / _MS_PER_HOUR); 
+                    old=((new Date()- this.ISODateParser(feedsArray[i].Items[j].PublishDate)) / _MS_PER_HOUR); 
                     if (old>settings.get_int(DELETE_AFTER)) continue;
-                    if (old<2*settings.get_int(UPDATE_INTERVAL_KEY))  this.hotItem(this.feedsArray[i].Items[j].Title);
-                    let menuItem = new PopupMenu.PopupMenuItem( "("+old.toFixed(1)+"H ago) "+this.feedsArray[i].Items[j].Title);  //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
+                    if ((old<(2*settings.get_int(UPDATE_INTERVAL_KEY)/60))&& (this.hotIndex<2)) {
+                        this.hotItem(feedsArray[i].Items[j].Title);
+                    }
+                    let menuItem = new PopupMenu.PopupMenuItem( "("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title);  //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
                     subMenu.menu.addMenuItem(menuItem);
-                    //subMenu.menu.addAction( ("("+old.toFixed(1)+"H ago) "+this.feedsArray[i].Items[j].Title), null, 'view-refresh-symbolic'); 
+                    //subMenu.menu.addAction( ("("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title), null, 'view-refresh-symbolic'); 
                     menuItem.connect('activate', ()=>{
-                           log("Opening browser with link " +  this.feedsArray[i].Items[j].HttpLink);
-                           Util.trySpawnCommandLine(this._browser + ' ' + this.feedsArray[i].Items[j].HttpLink);
-				     });
+                           //log("Opening browser with link " +  feedsArray[i].Items[j].HttpLink);
+                           Util.trySpawnCommandLine(this._browser + ' ' + feedsArray[i].Items[j].HttpLink);
+                    });
                 }
                 this.feedsSection.addMenuItem(subMenu);   
             }
@@ -391,56 +357,115 @@ class RssFeedButton extends PanelMenu.Button {
     
     //notif new item
     hotItem(strItm){
-        this.icon = new St.Icon({
+        this.hotIndex=2;
+        this.icon =  new St.Icon({
             gicon : Gio.icon_new_for_string( Me.dir.get_path()+ '/rss_red.png' ),
             style_class: 'webfeed-icon-size'
-            
         });
-        //this.add_actor(icon);
+        this.topBox.remove_all_children() ;
+        this.topBox.add_child(this.icon)
+        Main.notify("webfeed NEWS : "+strItm);  //TODO prefbox asknotif ok
+    }
+    
+    //il y a des reponses
+    warmItem(){
+        this.hotIndex=1;
+        this.icon =  new St.Icon({
+            gicon : Gio.icon_new_for_string( Me.dir.get_path()+ '/rss_yelow.png' ),
+            style_class: 'webfeed-icon-size'
+        });
+        this.topBox.remove_all_children() ;
+        this.topBox.add_child(this.icon)
     }
     
     EraseHotItem(){
+        this.hotIndex=0;
         this.icon = new St.Icon({
             gicon : Gio.icon_new_for_string( Me.dir.get_path()+ '/rss_green.png' ),
             style_class: 'webfeed-icon-size'
-            
         });
-        //this.add_actor(icon);
-    }
+        this.topBox.remove_all_children() ;
+        this.topBox.add_child(this.icon)
+     }
+    
+    
 });
 
-/*
- *  Extension widget instance
- */
+  /*
+     *  On HTTP request response callback 
+     *  responseData - response data
+     *  position - Position in feed sources list
+     */
+    function onDownload(responseData, position) {
+		let xmlDoc = new JsxmL.REXML(responseData);
+        let feedParser;
+              
+        if (xmlDoc.rootElement.name.toLowerCase().slice(0, 3) == 'rss'){  // 3 est la length de rss
+            //log('RSS ');
+            feedParser= new Rss.RssParser(xmlDoc.rootElement);
+        }  
+        
+        if (xmlDoc.rootElement.name.toLowerCase().slice(0, 4) == 'feed'){
+            //log('ATOM');
+            feedParser= new Atom.AtomParser(xmlDoc.rootElement);
+        }
+        
+        if (feedParser==null) {           // entré ni rss ni atom
+            log('Bad XML'); 
+            return; 
+        }       
+
+        if (feedParser.Items.length > 0)
+        {
+            let Feed = new class{
+                   constructor(){
+                    this.Title= feedParser.Title; 
+                    this.HttpLink=  feedParser.HttpLink;
+                    this.PublishDate=feedParser.PublishDate;
+                    this.Items= [];
+                } };
+           
+            for (let i = 0; i < feedParser.Items.length; i++) {
+                let item = new class{
+                   constructor(){
+                     this.Title= feedParser.Items[i].Title;
+                     this.HttpLink=  feedParser.Items[i].HttpLink;
+                     this.PublishDate=feedParser.Items[i].PublishDate;
+                }};
+                Feed.Items.push(item);
+            }
+           feedsArray[position] = Feed;  // TODO voir le this
+           rxAsync[position]=0;
+        } 
+        else{
+            log('Bad XML no item'); 
+            rxAsync[position]=0;
+            return; 
+        }    
+      
+    }
 
 
-/*
- *  Initialize the extension
- */
 function init() {
     ExtensionUtils.initTranslations('webfeed');
-
-    log("Extension initialized.");
 }
 
-/*
- *  Enable the extension
- */
+
 function enable() {
     settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.webfeed');  
-    rssFeedBtn = new RssFeedButton();
-    Main.panel.addToStatusArea('WebFeedMenu', rssFeedBtn, 0, 'right');
-    log("Extension enabled.");
+    webfeedClass = new WebFeedClass();
+    Main.panel.addToStatusArea('WebFeedMenu', webfeedClass, 0, 'right');
 }
 
-/*
- *  Disable the extension
- */
-function disable() {
 
-    rssFeedBtn.stop();
-    rssFeedBtn.destroy();
-    rssFeedBtn=null;
+function disable() {
+    //Mainloop.source_remove(timeout);
+    webfeedClass.stop();
+    webfeedClass.destroy();
+    webfeedClass=null;
     settings=null;
-    log("Extension disabled.");
+    timeout=null;
+    feedsArray=null;
+    rxAsync=null;
+      secu=null;
 }

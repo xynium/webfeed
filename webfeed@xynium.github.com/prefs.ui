@@ -85,7 +85,6 @@
                     <property name="can_focus">True</property>
                     <property name="max_width_chars">5</property>
                     <property name="text" translatable="yes">10</property>
-                    <property name="orientation">vertical</property>
                     <property name="adjustment">adjustment1</property>
                     <property name="numeric">True</property>
                     <property name="value">10</property>
@@ -128,7 +127,6 @@
                     <property name="can_focus">True</property>
                     <property name="max_width_chars">5</property>
                     <property name="text" translatable="yes">10</property>
-                    <property name="orientation">vertical</property>
                     <property name="adjustment">adjustment2</property>
                     <property name="numeric">True</property>
                     <property name="value">10</property>
@@ -166,7 +164,6 @@
                   <object class="GtkSpinButton" id="spbtn3">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="orientation">vertical</property>
                     <property name="adjustment">adjustment4</property>
                     <property name="numeric">True</property>
                   </object>
