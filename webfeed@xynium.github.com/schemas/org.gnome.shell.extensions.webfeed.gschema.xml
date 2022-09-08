@@ -3,7 +3,7 @@
     <schema path="/org/gnome/shell/extensions/webfeed/" id="org.gnome.shell.extensions.webfeed">
         <key type="i" name="update-interval">
             <default>15</default>
-            <summary>Update interval</summary>
+            <summary>Update interval(min)</summary>
             <description>Download interval (in minutes) for all RSS feeds.</description>
         </key>
         <key type="i" name="items-visible">
@@ -25,6 +25,21 @@
             <default>true</default>
             <summary>has to update</summary>
             <description>Flag to tell to refresh.</description>
+        </key>
+        <key type="b" name="okfornotif">
+            <default>true</default>
+            <summary>want notification</summary>
+            <description>want notification on hot item.</description>
+        </key>
+        <key type="i" name="durationhotitem">
+            <default>12</default>
+            <summary>How long a hot item is hot(min)</summary>
+            <description>How long a hot item is hot.</description>
+        </key>
+        <key type="i" name="delayforreceive">
+            <default>12</default>
+            <summary>How long to wait for receiving(s)</summary>
+            <description>How long to wait for receiving request answer</description>
         </key>
     </schema>
 </schemalist>
