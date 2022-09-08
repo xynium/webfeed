@@ -10,20 +10,15 @@
 'use strict';
 
 const Main = imports.ui.main;
-const Mainloop = imports.mainloop;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
-const Soup = imports.gi.Soup;
-const St = imports.gi.St;
 const Util = imports.misc.util;
-const Clutter = imports.gi.Clutter;
-const GObject = imports.gi.GObject;
 const ExtensionUtils = imports.misc.extensionUtils;
-const Gio = imports.gi.Gio;
 const JsxmL = Me.imports.jsxml;
 const Rss = Me.imports.rss;
 const Atom = Me.imports.atom;
+const {GLib, Gio,St,Clutter,GObject,Soup} = imports.gi;
 
 const Gettext = imports.gettext.domain('webfeed');
 const _ = Gettext.gettext;
@@ -32,9 +27,14 @@ const RSS_FEEDS_LIST_KEY = 'rss-feeds-list';
 const UPDATE_INTERVAL_KEY = 'update-interval';
 const ITEMS_VISIBLE_KEY = 'items-visible';
 const DELETE_AFTER = "delete-after"
+const OKFORNOTIF ="okfornotif";
+const DURHOTISHOT =  "durationhotitem";
+const DLYFORRX ="delayforreceive";
+
+
 const _MS_PER_HOUR = 1000 * 60 * 60 ;
 
-const MAXRESPDELAY=400; //en 0.1seconde soit 40 seconde //TODO make a choice in prefdialog
+//const MAXRESPDELAY=400; //en 0.1seconde soit 40 seconde //TODO make a choice in prefdialog
 
 let webfeedClass;
 let settings;
@@ -199,7 +199,7 @@ class WebFeedClass extends PanelMenu.Button {
     realoadRssFeeds() {
         log("Reload all Feeds");
         if (this.timeout)
-            Mainloop.source_remove(this.timeout);
+            GLib.source_remove(this.timeout);
             
         if (settings.get_strv(RSS_FEEDS_LIST_KEY).length!=0) {
             feedsArray=[];
@@ -217,43 +217,46 @@ class WebFeedClass extends PanelMenu.Button {
                 }
             } 
             //timer attente response
-             this.wtforresptmr=Mainloop.timeout_add(100, this.wtforresp.bind(this));
+             this.wtforresptmr=GLib.timeout_add(GLib.PRIORITY_HIGH_IDLE,100, this.wtforresp.bind(this));
                secu=0;
         }
           //timeout if enabled
         if (settings.get_int(UPDATE_INTERVAL_KEY) > 0) {
             log("Next scheduled reload after " + settings.get_int(UPDATE_INTERVAL_KEY)*60 + " seconds");
-            this.timeout = Mainloop.timeout_add_seconds(settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
+           // this.timeout = Mainloop.timeout_add_seconds(settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
+           this.timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT_IDLE,settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
         }
+        return GLib.SOURCE_REMOVE;
     }
     
-      //wait for all response from http get
-      //timer call it every 100ms
-      // when all received kill timer
-      // if after secu request not good throw an error an continue
+    //wait for all response from http get
+    //timer call it every 100ms
+    // when all received kill timer
+    // if after secu request not good throw an error an continue
     wtforresp(){
         if (this.wtforresptmr)
-            Mainloop.source_remove(this.wtforresptmr);
+            GLib.source_remove(this.wtforresptmr);
         let allz=false;
         try{
-            if (secu++>MAXRESPDELAY) throw('ERROR : Http problem :');  //  has waited too long
+            if (secu++>settings.get_int(DLYFORRX)) throw('ERROR : Http problem :');  //  has waited too long
             allz = rxAsync.every((value, index, array) =>{
                     return value==0 ;
             });
             if (!allz) {
-                 this.wtforresptmr=Mainloop.timeout_add(100, this.wtforresp.bind(this));
-                 return;
+                 this.wtforresptmr=GLib.timeout_add(GLib.PRIORITY_HIGH_IDLE,100, this.wtforresp.bind(this));
+                 return GLib.SOURCE_REMOVE;
              }
         }
         catch(error){
             log(error);
              for (let i = 0; i < settings.get_strv(RSS_FEEDS_LIST_KEY).length; i++) {
-                 if (xAsync[i]==1) log(settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+" has not responded ");
+                 if (rxAsync[i]==1) log(settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+" has not responded ");
              }
         }
         log('all response  in '+secu/10+' s');
         this.refreshMenuLst();
         this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString());
+        return GLib.SOURCE_REMOVE;
     }
 
     /*
@@ -276,8 +279,8 @@ class WebFeedClass extends PanelMenu.Button {
         },);
     }
 
-    //  Reloads feeds section
-     refreshMenuLst() {
+    // Reloads feeds section
+    refreshMenuLst() {
         let counter = 0;
         this.feedsSection.removeAll();
         this.EraseHotItem();
@@ -297,7 +300,7 @@ class WebFeedClass extends PanelMenu.Button {
                 for (let j = 0; j < nItems; j++) {
                     old=((new Date()- this.ISODateParser(feedsArray[i].Items[j].PublishDate)) / _MS_PER_HOUR); 
                     if (old>settings.get_int(DELETE_AFTER)) continue;
-                    if ((old<(2*settings.get_int(UPDATE_INTERVAL_KEY)/60))&& (this.hotIndex<2)) {
+                    if ((old<(settings.get_int(DURHOTISHOT)/60))&& (this.hotIndex<2)) {
                         this.hotItem(feedsArray[i].Items[j].Title);
                     }
                     let menuItem = new PopupMenu.PopupMenuItem( "("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title);  //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
@@ -333,7 +336,8 @@ class WebFeedClass extends PanelMenu.Button {
             style_class: 'webfeed-icon-size'
         });
         this.topBox.add_child(this.icon)
-        Main.notify("webfeed NEWS : "+strItm);  //TODO prefbox asknotif ok
+        if (settings.get_boolean(OKFORNOTIF))
+            Main.notify("webfeed NEWS : "+strItm);  //TODO prefbox asknotif ok
     }
     
     //il y a des reponses
@@ -356,6 +360,16 @@ class WebFeedClass extends PanelMenu.Button {
         });
         this.topBox.add_child(this.icon)
      }
+     
+    destroy(){
+        if (this.wtforresptmr)
+            GLib.source_remove(this.wtforresptmr);
+        if (this.timeout)
+            GLib.source_remove(this.timeout);
+        this.timeout=null;  
+        this.wtforresptmr =null;
+        super.destroy();
+    }
 });
 
 /*
@@ -401,7 +415,7 @@ function onDownload(responseData, position) {
             }};
             Feed.Items.push(item);
         }
-       feedsArray[position] = Feed;  // TODO voir le this
+       feedsArray[position] = Feed;
        rxAsync[position]=0;
     } 
     else{
@@ -425,7 +439,6 @@ function enable() {
 
 
 function disable() {
-    //Main.panel.statusArea['WebFeed']=null;
     webfeedClass.destroy();
     webfeedClass=null;
     settings=null;

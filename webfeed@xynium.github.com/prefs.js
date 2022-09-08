@@ -23,6 +23,9 @@ const RSS_FEEDS_LIST_KEY = 'rss-feeds-list';
 const UPDATE_INTERVAL_KEY = 'update-interval';
 const ITEMS_VISIBLE_KEY = 'items-visible';
 const DELETE_AFTER = "delete-after"
+const OKFORNOTIF ="okfornotif";
+const DURHOTISHOT =  "durationhotitem";
+const DLYFORRX ="delayforreceive";
 
 const MyPrefsWidgetF = GObject.registerClass(
 class MyPrefsWidgetF extends Gtk.Box {
@@ -48,7 +51,18 @@ class MyPrefsWidgetF extends Gtk.Box {
          // delete after
         let widjet3 = builder.get_object('spbtn3');
         this.Settings.bind(DELETE_AFTER, widjet3, 'value', Gio.SettingsBindFlags.DEFAULT);
+        
+         // delais rx
+        let widjet4 = builder.get_object('spbtnRxDly');
+        this.Settings.bind(DLYFORRX, widjet4, 'value', Gio.SettingsBindFlags.DEFAULT);
 
+        // delete news
+        let widjet5 = builder.get_object('spindurhot');
+        this.Settings.bind(DURHOTISHOT, widjet5, 'value', Gio.SettingsBindFlags.DEFAULT);
+
+        // radio btn notif
+        let widjet6 = builder.get_object('rbIsNotif');
+        this.Settings.bind(OKFORNOTIF, widjet6, 'value', Gio.SettingsBindFlags.DEFAULT);
 
         // rss feed sources
         this.feedstore = builder.get_object('liststore1');
@@ -202,7 +216,6 @@ class MyPrefsWidgetF extends Gtk.Box {
 
 
 function init() {
-    //Convenience.initTranslations("rss-feed");
 }
 
 
