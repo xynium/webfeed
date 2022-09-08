@@ -60,9 +60,9 @@ class MyPrefsWidgetF extends Gtk.Box {
         let widjet5 = builder.get_object('spindurhot');
         this.Settings.bind(DURHOTISHOT, widjet5, 'value', Gio.SettingsBindFlags.DEFAULT);
 
-        // radio btn notif
-        let widjet6 = builder.get_object('rbIsNotif');
-        this.Settings.bind(OKFORNOTIF, widjet6, 'value', Gio.SettingsBindFlags.DEFAULT);
+        // switch btn notif
+        let widjet6 = builder.get_object('swNotif');
+        this.Settings.bind(OKFORNOTIF, widjet6, 'active', Gio.SettingsBindFlags.DEFAULT);
 
         // rss feed sources
         this.feedstore = builder.get_object('liststore1');
