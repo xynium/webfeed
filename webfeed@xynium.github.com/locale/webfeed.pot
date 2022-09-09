@@ -1,0 +1,52 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#: atom.js:10 atom.js:11 atom.js:12 atom.js:13 atom.js:43 atom.js:44 atom.js:45
+#: atom.js:46 atom.js:47 atom.js:48 jsxml.js:44 jsxml.js:50 jsxml.js:51
+#: jsxml.js:52 jsxml.js:53 jsxml.js:54 jsxml.js:55 jsxml.js:68 jsxml.js:82
+#: jsxml.js:83 jsxml.js:91 jsxml.js:92 jsxml.js:96 jsxml.js:101 jsxml.js:106
+#: jsxml.js:108 jsxml.js:110 jsxml.js:112 jsxml.js:116 jsxml.js:121
+#: jsxml.js:123 jsxml.js:147 jsxml.js:152 jsxml.js:168 jsxml.js:169
+#: jsxml.js:176 jsxml.js:181 jsxml.js:227 jsxml.js:246 jsxml.js:291
+#: jsxml.js:303 jsxml.js:306 jsxml.js:310 jsxml.js:314 jsxml.js:339
+#: jsxml.js:343 jsxml.js:350 jsxml.js:372 jsxml.js:373 jsxml.js:384
+#: jsxml.js:490 prefs.js:138 prefs.js:139 prefs.js:163 rss.js:10 rss.js:11
+#: rss.js:12 rss.js:13 rss.js:40 rss.js:41 rss.js:42 rss.js:43 rss.js:44
+#: rss.js:45
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-09-08 13:55+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+
+#: extension.js:299 extension.js:306
+msgid "( "
+msgstr ""
+
+#: extension.js:299 extension.js:306
+msgid "H ago) "
+msgstr ""
+
+#: extension.js:317
+msgid "No data available"
+msgstr ""
+
+#: prefs.js:138
+msgid "New Feed source"
+msgstr ""
+
+#: prefs.js:162
+msgid "Edit Feed source"
+msgstr ""
+

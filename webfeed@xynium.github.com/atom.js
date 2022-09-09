@@ -38,7 +38,7 @@ var AtomParser=class AtomParser  {
     parseItem(itemElements) {
         //this.n++;
 
-        let item =new class{
+        var item =new class{
             constructor(){
             var Title= '',
             HttpLink= '',

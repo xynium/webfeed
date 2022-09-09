@@ -222,8 +222,7 @@ class WebFeedClass extends PanelMenu.Button {
         }
           //timeout if enabled
         if (settings.get_int(UPDATE_INTERVAL_KEY) > 0) {
-            log("Next scheduled reload after " + settings.get_int(UPDATE_INTERVAL_KEY)*60 + " seconds");
-           // this.timeout = Mainloop.timeout_add_seconds(settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
+           //log("Next scheduled reload after " + settings.get_int(UPDATE_INTERVAL_KEY)*60 + " seconds");
            this.timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT_IDLE,settings.get_int(UPDATE_INTERVAL_KEY)*60,  this.realoadRssFeeds.bind(this));
         }
         return GLib.SOURCE_REMOVE;
@@ -268,7 +267,7 @@ class WebFeedClass extends PanelMenu.Button {
     httpGetRequestAsync(url, params, position) {
         if (this._httpSession == null) this._httpSession = new Soup.SessionAsync();
         //log("[" + position + "] Soup HTTP GET request. URL: " + url + " parameters: " + JSON.stringify(params));
-        Soup.Session.prototype.add_feature.call(this._httpSession, new Soup.ProxyResolverDefault());
+        //Soup.Session.prototype.add_feature.call(this._httpSession, new Soup.ProxyResolverDefault());
         let request = Soup.form_request_new_from_hash('GET', url, params);
         if (request==null) return;
         let self=this;
@@ -296,14 +295,14 @@ class WebFeedClass extends PanelMenu.Button {
                     this.hotItem(feedsArray[i].Title);
                 }*/
                 let nItems = feedsArray[i].Items.length;
-                let subMenu = new PopupMenu.PopupSubMenuMenuItem("("+old.toFixed(1)+"H ago) "+feedsArray[i].Title+ ' (' + nItems + ') :') ; //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
+                let subMenu = new PopupMenu.PopupSubMenuMenuItem(_("( ")+old.toFixed(1)+_("H ago) ")+feedsArray[i].Title+ ' (' + nItems + ') :') ; //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
                 for (let j = 0; j < nItems; j++) {
                     old=((new Date()- this.ISODateParser(feedsArray[i].Items[j].PublishDate)) / _MS_PER_HOUR); 
                     if (old>settings.get_int(DELETE_AFTER)) continue;
                     if ((old<(settings.get_int(DURHOTISHOT)/60))&& (this.hotIndex<2)) {
                         this.hotItem(feedsArray[i].Items[j].Title);
                     }
-                    let menuItem = new PopupMenu.PopupMenuItem( "("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title);  //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
+                    let menuItem = new PopupMenu.PopupMenuItem( _("( ")+old.toFixed(1)+_("H ago) ")+feedsArray[i].Items[j].Title);  //(Encoder.htmlDecode(title) + ' (' + nitems + ')');
                     subMenu.menu.addMenuItem(menuItem);
                     //subMenu.menu.addAction( ("("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title), null, 'view-refresh-symbolic'); 
                     menuItem.connect('activate', ()=>{
