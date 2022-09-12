@@ -1,19 +1,12 @@
 /*
- * RSS Feed extension for GNOME Shell
- *
- * from (C) 2015
- *     Tomas Gazovic <gazovic.tomasgmail.com>,
- *     Janka Gazovicova <jana.gazovicova@gmail.com>
- *
- * mk2 by Xynium September 2022
+ * WebFeed extension for GNOME Shell
+ * Xynium September 2022
  */
-
+'use strict';
+const {  Gio, Gtk ,GObject} = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
-const Gio = imports.gi.Gio;
-const GObject = imports.gi.GObject;
-const Gtk = imports.gi.Gtk;
-const Me = imports.misc.extensionUtils.getCurrentExtension();
-const Gettext = imports.gettext.domain('WebFeed');
+const Me = ExtensionUtils.getCurrentExtension();
+const Gettext = imports.gettext.domain('moonphases');
 const _ = Gettext.gettext;
 
 const COLUMN_ID = 0;
@@ -27,200 +20,180 @@ const OKFORNOTIF ="okfornotif";
 const DURHOTISHOT =  "durationhotitem";
 const DLYFORRX ="delayforreceive";
 
-const MyPrefsWidgetF = GObject.registerClass(
-class MyPrefsWidgetF extends Gtk.Box {
+let feedstore,settings,widget2;
 
-    _init (params) {
-        super._init(params);
 
-        let builder = new Gtk.Builder();
-        builder.set_translation_domain('WebFeed');
-        builder.add_from_file(Me.path + '/prefs.ui');
+function init() {
+    ExtensionUtils.initTranslations('moonphases');
+}
+
+
+function buildPrefsWidget () {
+    settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.webfeed');
+    let builder = new Gtk.Builder();
+    builder.set_translation_domain('WebFeed');
+    builder.add_from_file(Me.path + '/prefs.ui');
+
+    // update interval
+    let widjet0= builder.get_object("spbt1");
+    widjet0.set_range(0, MAX_UPDATE_INTERVAL);
+    settings.bind(UPDATE_INTERVAL_KEY, widjet0, 'value', Gio.SettingsBindFlags.DEFAULT);
         
-        this.Settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.webfeed');
-
-        // update interval
-        let widjet0= builder.get_object("spbt1");
-        widjet0.set_range(0, MAX_UPDATE_INTERVAL);
-        this.Settings.bind(UPDATE_INTERVAL_KEY, widjet0, 'value', Gio.SettingsBindFlags.DEFAULT);
+    // items visible per page
+    let widjet1 = builder.get_object('spbt2');
+    settings.bind(ITEMS_VISIBLE_KEY, widjet1, 'value', Gio.SettingsBindFlags.DEFAULT);
         
-        // items visible per page
-        let widjet1 = builder.get_object('spbt2');
-        this.Settings.bind(ITEMS_VISIBLE_KEY, widjet1, 'value', Gio.SettingsBindFlags.DEFAULT);
+    // delete after
+    let widjet3 = builder.get_object('spbtn3');
+    settings.bind(DELETE_AFTER, widjet3, 'value', Gio.SettingsBindFlags.DEFAULT);
         
-         // delete after
-        let widjet3 = builder.get_object('spbtn3');
-        this.Settings.bind(DELETE_AFTER, widjet3, 'value', Gio.SettingsBindFlags.DEFAULT);
+    // delais rx
+    let widjet4 = builder.get_object('spbtnRxDly');
+    settings.bind(DLYFORRX, widjet4, 'value', Gio.SettingsBindFlags.DEFAULT);
+
+    // delete news
+    let widjet5 = builder.get_object('spindurhot');
+    settings.bind(DURHOTISHOT, widjet5, 'value', Gio.SettingsBindFlags.DEFAULT);
+
+    // switch btn notif
+    let widjet6 = builder.get_object('swNotif');
+    settings.bind(OKFORNOTIF, widjet6, 'active', Gio.SettingsBindFlags.DEFAULT);
+
+    //feed sources
+    feedstore = builder.get_object('liststore1');
+    loadStoreFromSettings(feedstore,settings );
+
+    widget2 = builder.get_object('trvFeed');
+    let column = builder.get_object('treeviewcolumn1');
+    let cell = new Gtk.CellRendererText({ editable: false });
+    column.pack_start(cell, true);
+    column.add_attribute(cell, "text", COLUMN_ID);
+    widget2.append_column(column);
+
+    let delButton =  builder.get_object('delButton');
+    delButton.connect('clicked', ()=>{deleteSelected();});
         
-         // delais rx
-        let widjet4 = builder.get_object('spbtnRxDly');
-        this.Settings.bind(DLYFORRX, widjet4, 'value', Gio.SettingsBindFlags.DEFAULT);
+    let editButton = builder.get_object('editButton');
+    editButton.connect('clicked', ()=>{editSelected();});
 
-        // delete news
-        let widjet5 = builder.get_object('spindurhot');
-        this.Settings.bind(DURHOTISHOT, widjet5, 'value', Gio.SettingsBindFlags.DEFAULT);
+    let newButton = builder.get_object('newButton');
+    newButton.connect('clicked',()=>{createNew();});
 
-        // switch btn notif
-        let widjet6 = builder.get_object('swNotif');
-        this.Settings.bind(OKFORNOTIF, widjet6, 'active', Gio.SettingsBindFlags.DEFAULT);
+    return builder.get_object('prefs-container') ;
+}
 
-        // rss feed sources
-        this.feedstore = builder.get_object('liststore1');
-        this.loadStoreFromSettings();
-
-        this.widget2 = builder.get_object('trvFeed');
-        //widjet2.get_selection().set_mode(Gtk.SelectionMode.SINGLE);
-
-        let column = builder.get_object('treeviewcolumn1');
-        
-        let cell = new Gtk.CellRendererText({ editable: false });
-        column.pack_start(cell, true);
-        column.add_attribute(cell, "text", COLUMN_ID);
-        this.widget2.append_column(column);
-
-        let delButton =  builder.get_object('delButton');
-        delButton.connect('clicked', ()=>{this.deleteSelected();});
-        
-        let editButton = builder.get_object('editButton');
-        editButton.connect('clicked', ()=>{this.editSelected();});
-
-        let newButton = builder.get_object('newButton');
-        newButton.connect('clicked',()=>{this.createNew();});
-
-        this.add( builder.get_object('prefs-container') );
-  
-    }
-
-    /*
-     *  Creates modal dialog when adding new or editing RSS source
+    /*  Creates modal dialog new or editing  
      *  title - dialog title
      *  text - text in dialog
-     *  onOkButton - callback on OK button clicked
-     */
-    createDialog(title, text, onOkButton) {
-        let dialog = new Gtk.Dialog({title: title});
-        dialog.set_modal(true);
-        dialog.set_resizable(true);
-        dialog.set_border_width(12);
+     *  onOkButton - callback on OK button clicked     */
+ function  createDialog(title, text, onOkButton) {
+    let dialog = new Gtk.Dialog({title: title});
+    dialog.set_modal(true);
+    dialog.set_resizable(true);
 
-        this._entry = new Gtk.Entry({text: text});
-        //this._entry.margin_top = 12;
-        this._entry.margin_bottom = 12;
-        this._entry.width_chars = 80;
+    let _entry = new Gtk.Entry({text: text});
+    _entry.margin_bottom = 12;
+    _entry.width_chars = 80;
+    _entry.activates_default = true;
 
-        this._entry.connect("changed", ()=> {
+    _entry.connect("changed", ()=> {
+        if (_entry.get_text().length === 0)
+            _okButton.sensitive = false;
+        else
+            _okButton.sensitive = true;
+    });
+    dialog.add_action_widget(_entry,2);
+    
+    dialog.add_action_widget(  new Gtk.Button({label:'Return',icon_name :'gtk-cancel'}) , 0); 
+    let _okButton =new Gtk.Button({label:'OK',icon_name:'gtk-ok'}) ;
+    dialog.add_action_widget(_okButton , 1); 
+    dialog.set_default_response(1);
 
-            if (this._entry.get_text().length === 0)
-                this._okButton.sensitive = false;
-            else
-                this._okButton.sensitive = true;
-        });
+    /*let dialog_area = dialog.get_content_area();
+    dialog_area.prepend(_entry, 0, 0, 0);*/
 
-        dialog.add_button(Gtk.STOCK_CANCEL, 0);
-        this._okButton = dialog.add_button(Gtk.STOCK_OK, 1);    // default
-        this._okButton.set_always_show_image(true) ;
-        dialog.set_default(this._okButton);
-        this._entry.activates_default = true;
+    dialog.connect("response", (w, response_id)=> {
+        if (response_id) {  // button OK
+            onOkButton(_entry.get_text());
+        }
+        dialog.hide();
+    });
+    dialog.show();
+}
 
-        let dialog_area = dialog.get_content_area();
-        dialog_area.pack_start(this._entry, 0, 0, 0);
+ function  createNew() {
+    createDialog(_("New Feed source"), '', (egtxt) =>{
+        if (egtxt==''){
+            return;
+        }
+        // update tree view
+        let iter = feedstore.append();
+        feedstore.set_value(iter, COLUMN_ID, egtxt);
+        
+        // update settings
+        let feeds = settings.get_strv(RSS_FEEDS_LIST_KEY);
+        if (feeds == null)
+            feeds = new Array();
 
-        dialog.connect("response", (w, response_id)=> {
-            if (response_id) {  // button OK
-                onOkButton();
-            }
-            dialog.hide();
-        });
-        dialog.show_all();
-    }
+        feeds.push(egtxt);
+        settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
+        settings.set_boolean("torefresh", true);  
+    });
+}
 
-    createNew() {
-        this.createDialog(_("New Feed source"), '', () =>{
-            if (this._entry.get_text()==''){
+ function  editSelected() {// update tree view
+    let [any, model, iter] = widget2.get_selection().get_selected();
+
+    if (any) {
+        createDialog(_("Edit Feed source"), model.get_value(iter, COLUMN_ID),  (egtxt) =>{
+            if (egtxt==''){
                 return;
             }
-            // update tree view
-            let iter = this.feedstore.append();
-            this.feedstore.set_value(iter, COLUMN_ID, this._entry.get_text());
+            feedstore.set_value(iter, COLUMN_ID, egtxt);
 
             // update settings
-            let feeds = this.Settings.get_strv(RSS_FEEDS_LIST_KEY);
-            if (feeds == null)
-                feeds = new Array();
-
-            feeds.push(this._entry.get_text());
-            this.Settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
-            this.Settings.set_boolean("torefresh", true);  
-            
-        });
-    }
-
-    editSelected() {// update tree view
-        let [any, model, iter] = this.widget2.get_selection().get_selected();
-
-        if (any) {
-            this.createDialog(_("Edit Feed source"), model.get_value(iter, COLUMN_ID),  () =>{
-                if (this._entry.get_text()==''){
-                     return;
-                }
-                this.feedstore.set_value(iter, COLUMN_ID, this._entry.get_text());
-
-                // update settings
-                let index = model.get_path(iter).get_indices();
-                let feeds = this.Settings.get_strv(RSS_FEEDS_LIST_KEY);
-                if (feeds == null)
-                    feeds = new Array();
-
-                if (index < feeds.length) {
-                    feeds[index] = this._entry.get_text();
-                    this.Settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
-                }
-                this.Settings.set_boolean("torefresh", true); 
-            });
-            
-        }
-    }
-    
-    deleteSelected() {
-        let [any, model, iter] = this.widget2.get_selection().get_selected();
-        if (any) {
-            // must call before remove
             let index = model.get_path(iter).get_indices();
-            // update tree view
-            this.feedstore.remove(iter);
-
-            // update settings
-            let feeds = this.Settings.get_strv(RSS_FEEDS_LIST_KEY);
+            let feeds = settings.get_strv(RSS_FEEDS_LIST_KEY);
             if (feeds == null)
                 feeds = new Array();
 
             if (index < feeds.length) {
-                feeds.splice(index, 1);
-                this.Settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
+                feeds[index] = egtxt;
+                settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
+            }
+            settings.set_boolean("torefresh", true); 
+        });
+    }
+}
+    
+function  deleteSelected() {
+    let [any, model, iter] = widget2.get_selection().get_selected();
+    if (any) {
+         let index = model.get_path(iter).get_indices();
+        feedstore.remove(iter);
+        // update settings
+        let feeds = settings.get_strv(RSS_FEEDS_LIST_KEY);
+        if (feeds == null)
+            feeds = new Array();
+
+        if (index < feeds.length) {
+            feeds.splice(index, 1);
+            settings.set_strv(RSS_FEEDS_LIST_KEY, feeds);
+        }
+    }
+}
+
+function loadStoreFromSettings() {
+    let feeds = settings.get_strv(RSS_FEEDS_LIST_KEY);
+    if (feeds) {
+        for (let i = 0; i < feeds.length; i++) {
+            if (feeds[i]) { // test on empty string
+                let iter = feedstore.append();
+                feedstore.set_value(iter, COLUMN_ID, feeds[i]);
             }
         }
     }
-
-    loadStoreFromSettings() {
-        let feeds = this.Settings.get_strv(RSS_FEEDS_LIST_KEY);
-        if (feeds) {
-            for (let i = 0; i < feeds.length; i++) {
-                if (feeds[i]) { // test on empty string
-                    let iter = this.feedstore.append();
-                    this.feedstore.set_value(iter, COLUMN_ID, feeds[i]);
-                }
-            }
-        }
-    }
-});
-
-
-function init() {
 }
 
 
-function buildPrefsWidget() {
-    let widget = new MyPrefsWidgetF();
-    widget.show_all();
-    return widget;
-}
+
