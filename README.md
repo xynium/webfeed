@@ -3,7 +3,7 @@ rss and atom feed scanner gnome extension
 
 Parameter :
 Update interval (minutes) ->interval between interogation of all the feed.
-RSS sources per page -> maximun answer displyed at a time.
+RSS sources per page -> maximun answer displayed at a time.
 Erase after (hour) -> after this delay the answer is not displayed.
 waiting delay for response (secondes) -> all feed should have responded before this delay or the answer is discaded.
 Duration of news (minutes) -> on a new news the icon turn red and notification are diplayed after each interrogation during this delay.
