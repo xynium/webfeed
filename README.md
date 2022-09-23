@@ -9,7 +9,7 @@ waiting delay for response (secondes) -> all feed should have responded before t
 Duration of news (minutes) -> on a new news the icon turn red and notification are diplayed after each interrogation during this delay.
 Notification on news ->  on a new news a notification can be displayed according to that switch.
 
-
+Problem on Ubuntu when default browser is Firefox running in snap -> can't open the link.
 
 
 I made it for meteorological info 
