@@ -31,10 +31,7 @@ const OKFORNOTIF ="okfornotif";
 const DURHOTISHOT =  "durationhotitem";
 const DLYFORRX ="delayforreceive";
 
-
 const _MS_PER_HOUR = 1000 * 60 * 60 ;
-
-//const MAXRESPDELAY=400; //en 0.1seconde soit 40 seconde //TODO make a choice in prefdialog
 
 let webfeedClass;
 let settings;
@@ -135,13 +132,12 @@ class WebFeedClass extends PanelMenu.Button {
         
         try {
             // try to get default browser
-            this._browser = Gio.app_info_get_default_for_uri_scheme("http").get_executable();
+            this._browser = Gio.app_info_get_default_for_uri_scheme("http").get_executable(); //get_commandline();
+            log("Browser : " + this._browser);
         }
         catch (err) {
             log(err + ' (get default browser error)');
-            //return; continue without browser
         }
-        // loading data on startup
         this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString());
         this.realoadRssFeeds();
     }
@@ -233,6 +229,7 @@ class WebFeedClass extends PanelMenu.Button {
     // when all received kill timer
     // if after secu request not good throw an error an continue
     wtforresp(){
+        let strNoResp="";
         if (this.wtforresptmr)
             GLib.source_remove(this.wtforresptmr);
         let allz=false;
@@ -249,12 +246,15 @@ class WebFeedClass extends PanelMenu.Button {
         catch(error){
             log(error);
              for (let i = 0; i < settings.get_strv(RSS_FEEDS_LIST_KEY).length; i++) {
-                 if (rxAsync[i]==1) log(settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+" has not responded ");
+                 if (rxAsync[i]==1){
+               	   //log(settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+" has not responded ");
+               	   strNoResp+="\n"+settings.get_strv(RSS_FEEDS_LIST_KEY)[i]+_(" has not responded ");
+                 }
              }
         }
         log('all response  in '+secu/10+' s');
         this.refreshMenuLst();
-        this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString());
+        this.lastUpdateTime.set_label(_("Last update")+': ' + new Date().toLocaleTimeString()+strNoResp);
         return GLib.SOURCE_REMOVE;
     }
 
@@ -306,8 +306,13 @@ class WebFeedClass extends PanelMenu.Button {
                     subMenu.menu.addMenuItem(menuItem);
                     //subMenu.menu.addAction( ("("+old.toFixed(1)+"H ago) "+feedsArray[i].Items[j].Title), null, 'view-refresh-symbolic'); 
                     menuItem.connect('activate', ()=>{
-                           //log("Opening browser with link " +  feedsArray[i].Items[j].HttpLink);
-                           Util.trySpawnCommandLine(this._browser + ' ' + feedsArray[i].Items[j].HttpLink);
+                           log("Opening browser : "+this._browser+" with link : " +  feedsArray[i].Items[j].HttpLink);
+                           try{
+                        	   Util.trySpawnCommandLine(this._browser + ' ' + feedsArray[i].Items[j].HttpLink);
+                           }
+                           catch (err) {
+          			  log(err + ' (launch browser error or snap install )');
+          	           }
                     });
                 }
                 this.feedsSection.addMenuItem(subMenu);   
@@ -336,7 +341,7 @@ class WebFeedClass extends PanelMenu.Button {
         });
         this.topBox.add_child(this.icon)
         if (settings.get_boolean(OKFORNOTIF))
-            Main.notify("webfeed NEWS : "+strItm);  //TODO prefbox asknotif ok
+            Main.notify("webfeed NEWS : "+strItm); 
     }
     
     //il y a des reponses
@@ -391,7 +396,7 @@ function onDownload(responseData, position) {
     }
     
     if (feedParser==null) {           // entré ni rss ni atom
-        log('Bad XML'); 
+        log('Bad XML nor RSS nor ATOM'); 
         return; 
     }
 
@@ -418,7 +423,7 @@ function onDownload(responseData, position) {
        rxAsync[position]=0;
     } 
     else{
-        log('Bad XML no item'); 
+        log('Bad XML or no item in it'); 
         rxAsync[position]=0;
         return; 
     }
