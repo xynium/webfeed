@@ -50,3 +50,6 @@ msgstr ""
 msgid "Edit Feed source"
 msgstr ""
 
+#: prefs.js:252
+msgid " has not responded "
+msgstr ""
