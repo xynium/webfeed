@@ -1,10 +1,8 @@
 /*
  * WebFeed
- * MK2 by Xynium
+ * MK3 by Xynium
+ * Soup3
  * 
- * From
- *     Tomas Gazovic <gazovic.tomasgmail.com>,
- *     Janka Gazovicova <jana.gazovicova@gmail.com>
  */
 
 'use strict';
@@ -45,7 +43,7 @@ class WebFeedClass extends PanelMenu.Button {
     _init() {
         super._init(0);
 
-        this._httpSession = null;
+        this.httpSession = null;
         this._startIndex = 0;
         this.hotIndex=0;
        
@@ -259,23 +257,27 @@ class WebFeedClass extends PanelMenu.Button {
     }
 
     /*
-     *  Creates asynchronous HTTP GET request 
-     *  url - HTTP request URL without parameters
-     *  params - JSON object of HTTP GET request parameters
-     *  position - Position in RSS sources list
-     */
+    *  Creates asynchronous HTTP GET request 
+    *  url - HTTP request URL without parameters
+    *  params - JSON object of HTTP GET request parameters
+    *  position - Position in RSS sources list
+    */
+    //from https://libsoup.org/libsoup-3.0/client-basic.html
     httpGetRequestAsync(url, params, position) {
-        if (this._httpSession == null) this._httpSession = new Soup.SessionAsync();
-        //log("[" + position + "] Soup HTTP GET request. URL: " + url + " parameters: " + JSON.stringify(params));
-        //Soup.Session.prototype.add_feature.call(this._httpSession, new Soup.ProxyResolverDefault());
-        let request = Soup.form_request_new_from_hash('GET', url, params);
-        if (request==null) return;
-        let self=this;
-        this._httpSession.queue_message(request, (self ,message)=> {
-            //log("[" + position + "] Soup HTTP GET reponse. Status code: " + message.status_code + " Content Type: " + message.response_headers.get_one("Content-Type"));
-            if (message.response_body.data) onDownload(message.response_body.data, position);
-            else rxAsync[position]=0;
-        },);
+        if (this.httpSession == null) this.httpSession = new Soup.Session();
+        let message = Soup.Message.new_from_encoded_form(    'GET',    url,    Soup.form_encode_hash(params));
+        this.httpSession.send_and_read_async(    message,    GLib.PRIORITY_DEFAULT,    null,    (session, result) => {
+            if (message.get_status() === Soup.Status.OK) {
+                let bytes = session.send_and_read_finish(result);
+                if (bytes){
+                    let decoder = new TextDecoder('utf-8');
+                    let response = decoder.decode(bytes.get_data());
+                    onDownload(response, position);
+                    //log(`Response: ${response}`);
+                }
+                else rxAsync[position]=0;
+            }else rxAsync[position]=0;
+        });    
     }
 
     // Reloads feeds section
@@ -308,11 +310,11 @@ class WebFeedClass extends PanelMenu.Button {
                     menuItem.connect('activate', ()=>{
                            log("Opening browser : "+this._browser+" with link : " +  feedsArray[i].Items[j].HttpLink);
                            try{
-                        	   Util.trySpawnCommandLine(this._browser + ' ' + feedsArray[i].Items[j].HttpLink);
+                               Util.trySpawnCommandLine(this._browser + ' ' + feedsArray[i].Items[j].HttpLink);
                            }
                            catch (err) {
-          			  log(err + ' (launch browser error or snap install )');
-          	           }
+                               log(err + ' (launch browser error or snap install )');
+                           }
                     });
                 }
                 this.feedsSection.addMenuItem(subMenu);   
