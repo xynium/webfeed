@@ -1,8 +1,8 @@
 {
   "description": "RSS and Atom Feed reader for GNOME Shell",
   "name": "WebFeed",
-  "shell-version": [    "43"  ],
+  "shell-version": [    "43", "44"  ],
   "url": "https://github.com/xynium/webfeed",
   "uuid": "webfeed@xynium.github.com",
-  "version": 8
+  "version": 9
 }
