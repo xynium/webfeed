@@ -6,7 +6,7 @@
 const {  Gio, Gtk ,GObject} = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const Gettext = imports.gettext.domain('moonphases');
+const Gettext = imports.gettext.domain('WebFeed');
 const _ = Gettext.gettext;
 
 const COLUMN_ID = 0;
@@ -22,7 +22,7 @@ const DLYFORRX ="delayforreceive";
 
 
 function init() {
-    ExtensionUtils.initTranslations('moonphases');
+    ExtensionUtils.initTranslations('WebFeed');
 }
 
 
@@ -114,13 +114,12 @@ const PrefsWebFeed = GObject.registerClass(
             });
             dialog.add_action_widget(_entry,2);
             
-            dialog.add_action_widget(  new Gtk.Button({label:'Return',icon_name :'gtk-cancel'}) , 0); 
-            let _okButton =new Gtk.Button({label:'OK',icon_name:'gtk-ok'}) ;
+            //dialog.add_action_widget(new Gtk.Button({label:'Return',icon_name :'gtk-cancel'}) , 0); 
+            dialog.add_action_widget(new Gtk.Button({label:'Return'}) , 0); 
+            //let _okButton =new Gtk.Button({label:'OK',icon_name:'gtk-ok'}) ;
+            let _okButton =new Gtk.Button({label:'OK'}) ;
             dialog.add_action_widget(_okButton , 1); 
             dialog.set_default_response(1);
-
-            /*let dialog_area = dialog.get_content_area();
-            dialog_area.prepend(_entry, 0, 0, 0);*/
 
             dialog.connect("response", (w, response_id)=> {
                 if (response_id) {  // button OK
